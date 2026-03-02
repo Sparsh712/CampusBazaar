@@ -12,7 +12,7 @@ export default function OrderRow({ order, onRate }) {
                     {order.pickupLocation && <div>Pickup: {order.pickupLocation}</div>}
                 </div>
                 {order.txId && (
-                    <a href={`https://testnet.algoexplorer.io/tx/${order.txId}`} target="_blank" rel="noreferrer"
+                    <a href={`https://lora.algokit.io/testnet/transaction/${order.txId}`} target="_blank" rel="noreferrer"
                         style={{ fontSize: 11, color: "#6366f1", fontFamily: "'DM Mono', monospace", textDecoration: "none" }}>
                         {truncate(order.txId)} ↗
                     </a>
