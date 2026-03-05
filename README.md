@@ -100,5 +100,5 @@ Whether you're selling last semester's Calculus textbook, hunting for a cheap cy
 
 ---
 
-*Built with ❤️ by Team Vectôr.*
+*Built by Team Vectôr.*
 #

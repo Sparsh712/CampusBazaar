@@ -121,8 +121,11 @@ export default function App() {
 
   const filteredListings = useMemo(() => {
     let res = listings.filter(l => {
-      const isPurchased = orders.some(o => o.title === l.title);
-      if (isPurchased) return false;
+      // Only hide listings the current user has purchased
+      if (accountAddress) {
+        const isPurchased = orders.some(o => o.buyer === accountAddress && o.title === l.title && o.status !== "Failed");
+        if (isPurchased) return false;
+      }
 
       const matchCat = category === "All" || l.category === category;
       const matchCond = condFilter === "All" || l.condition === condFilter;
@@ -135,7 +138,9 @@ export default function App() {
     if (sortBy === "price-desc") res = [...res].sort((a, b) => b.price - a.price);
     if (sortBy === "rating") res = [...res].sort((a, b) => (b.rating || 0) - (a.rating || 0));
     return res;
-  }, [listings, orders, category, condFilter, search, sortBy, priceRange]);
+  }, [listings, orders, accountAddress, category, condFilter, search, sortBy, priceRange]);
+
+  const myOrders = useMemo(() => orders.filter(o => accountAddress && o.buyer === accountAddress), [orders, accountAddress]);
 
   const wishlistListings = useMemo(() => listings.filter(l => wishlist.includes(l.id)), [listings, wishlist]);
 
@@ -161,7 +166,7 @@ export default function App() {
       console.log("[CampusBazaar] Sent! txid:", txid);
 
       const orderId = Date.now();
-      const newOrder = { id: orderId, title: listing.title, image: listing.image, amount: listing.price, receiver: listing.seller, txId: txid, status: "Pending", date: new Date().toISOString(), rated: false, rating: 0, pickupLocation };
+      const newOrder = { id: orderId, title: listing.title, image: listing.image, amount: listing.price, buyer: accountAddress, receiver: listing.seller, txId: txid, status: "Pending", date: new Date().toISOString(), rated: false, rating: 0, pickupLocation };
       setOrders(prev => [newOrder, ...prev]);
       setCheckoutItem(null);
       setTab("orders");
@@ -189,7 +194,7 @@ export default function App() {
       setCheckoutItem(null);
       const cancelled = e.message?.includes("cancel") || e.message?.includes("rejected") || e.message?.includes("CONNECT_CANCELLED");
       if (!cancelled) {
-        setOrders(prev => [{ id: Date.now(), title: listing.title, image: listing.image, amount: listing.price, receiver: listing.seller, txId: null, status: "Failed", date: new Date().toISOString(), rated: false, rating: 0, pickupLocation }, ...prev]);
+        setOrders(prev => [{ id: Date.now(), title: listing.title, image: listing.image, amount: listing.price, buyer: accountAddress, receiver: listing.seller, txId: null, status: "Failed", date: new Date().toISOString(), rated: false, rating: 0, pickupLocation }, ...prev]);
       }
       showToast(cancelled ? "Transaction cancelled" : `Payment failed: ${e.message || "Unknown error"}`, "error");
     }
@@ -211,28 +216,28 @@ export default function App() {
   return (
     <>
       {/* ── Header ── */}
-      <header style={{ background: "#0a0f1edd", backdropFilter: "blur(12px)", borderBottom: "1px solid #1f2937", padding: "0 24px", position: "sticky", top: 0, zIndex: 100 }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", gap: 16, height: 64, flexWrap: "wrap" }}>
+      <header style={{ background: "#0a0f1edd", backdropFilter: "blur(12px)", borderBottom: "1px solid #1f2937", padding: "0 24px", position: "sticky", top: 0, zIndex: 100, overflowX: "auto", scrollbarWidth: "none" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", gap: 16, minHeight: 64, whiteSpace: "nowrap" }}>
           <div style={{ fontSize: 22, fontWeight: 900, color: "#f9fafb", letterSpacing: -0.5, flexShrink: 0, cursor: "pointer" }} onClick={() => setTab("browse")}>
             <span style={{ color: "#6366f1" }}>⬡</span> CampusBazaar
           </div>
 
           {/* Green Trades */}
           {greenTrades > 0 && (
-            <div style={{ background: "#064e3b33", border: "1px solid #06543555", borderRadius: 20, padding: "4px 12px", fontSize: 11, color: "#10b981", fontFamily: "'DM Mono', monospace", display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ background: "#064e3b33", border: "1px solid #06543555", borderRadius: 20, padding: "4px 12px", fontSize: 11, color: "#10b981", fontFamily: "'DM Mono', monospace", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
               🌿 {co2Saved} kg CO₂ saved
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 4, marginLeft: 8 }}>
+          <div style={{ display: "flex", gap: 4, marginLeft: 8, flexShrink: 0 }}>
             {["browse", "orders", "wishlist"].map(t => (
               <button key={t} onClick={() => setTab(t)} style={tabStyle(t)}>
-                {t === "browse" ? "Browse" : t === "orders" ? `Orders ${orders.length ? `(${orders.length})` : ""}` : `♡ ${wishlist.length || ""}`}
+                {t === "browse" ? "Browse" : t === "orders" ? `Orders ${myOrders.length ? `(${myOrders.length})` : ""}` : `♡ ${wishlist.length || ""}`}
               </button>
             ))}
           </div>
 
-          <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center", flexShrink: 0 }}>
             {/* Map */}
             {accountAddress && (
               <button onClick={() => setShowMap(true)} title="Campus Meetup Map"
@@ -385,7 +390,14 @@ export default function App() {
           <>
             <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>My Orders</h2>
             <p style={{ color: "#6b7280", marginBottom: 32, fontSize: 14 }}>Track your purchase history and transaction status</p>
-            {orders.length === 0 ? (
+            {!accountAddress ? (
+              <div style={{ textAlign: "center", padding: "80px 0", color: "#4b5563" }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>Connect your wallet</div>
+                <div style={{ fontSize: 14, marginTop: 8 }}>Connect your Pera Wallet to view your orders</div>
+                <button onClick={connectWallet} style={{ marginTop: 20, padding: "10px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", color: "#fff", cursor: "pointer", fontWeight: 700 }}>Connect Pera Wallet</button>
+              </div>
+            ) : myOrders.length === 0 ? (
               <div style={{ textAlign: "center", padding: "80px 0", color: "#4b5563" }}>
                 <div style={{ fontSize: 48, marginBottom: 16 }}>📦</div>
                 <div style={{ fontSize: 18, fontWeight: 700 }}>No orders yet</div>
@@ -394,7 +406,7 @@ export default function App() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {orders.map(o => <OrderRow key={o.id} order={o} onRate={handleRate} />)}
+                {myOrders.map(o => <OrderRow key={o.id} order={o} onRate={handleRate} />)}
               </div>
             )}
           </>
